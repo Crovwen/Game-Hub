@@ -7,6 +7,7 @@ const http = require('http');
 const { env, assertProductionEnv } = require('./config/env');
 const logger = require('./utils/logger');
 const registry = require('./games/registry');
+const { prisma } = require('./db/prisma');
 
 const authRoutes = require('./api/routes/auth.routes');
 const userRoutes = require('./api/routes/users.routes');
@@ -25,15 +26,24 @@ registry.discoverGames(); // fail fast at boot if a game plugin is malformed
 const app = express();
 app.use(
   cors({
-    // In production, only the deployed Mini App frontend may call this API.
-    // In development WEBAPP_URL is usually empty, so we fall back to
-    // allowing any origin to keep `npm run dev` friction-free.
     origin: env.WEBAPP_URL || true,
   }),
 );
 app.use(express.json());
 
-app.get('/health', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
+// Pinged by an external uptime monitor to stop Render's web service from
+// spinning down. It also touches the database with a trivial query so a
+// Postgres provider that auto-suspends on idle (e.g. Neon) stays warm too.
+app.get('/health', async (req, res) => {
+  let dbOk = true;
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+  } catch (err) {
+    dbOk = false;
+    logger.error('health_db_check_failed', { error: err.message });
+  }
+  res.json({ ok: true, db: dbOk, time: new Date().toISOString() });
+});
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -42,14 +52,10 @@ app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/games', gameRoutes);
 app.use('/api/matches', matchRoutes);
 
-// Telegram delivers updates here (webhook mode — see README "Render
-// Deployment" and the architecture note in bot/bot.js about why this isn't
-// long-polling in a background worker).
 if (env.BOT_TOKEN) {
   app.post('/bot/webhook', bot.webhookMiddleware());
 }
 
-// Centralized error handler: never leak stack traces / internals (spec section 32).
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   logger.error('unhandled_error', { error: err.message, path: req.path });
@@ -69,10 +75,8 @@ server.listen(PORT, async () => {
   }
 });
 
-// Sweep expired friend-game invites every 30s so a stale "waiting for your
-// friend..." screen resolves on its own even if nobody polls it.
 setInterval(() => {
   matchmaking.expireStaleGameRequests().catch((err) => logger.error('expire_sweep_failed', { error: err.message }));
 }, 30 * 1000);
 
-module.exports = { app, server };
+module.exports = { app, server }; 
