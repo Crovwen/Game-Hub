@@ -1,0 +1,21 @@
+{
+  "id": "gol-ya-pooch",
+  "name": "Gol Ya Pooch",
+  "persianName": "گل یا پوچ",
+  "icon": "✊",
+  "description": "حدس بزن گل کدام مشت است؛ هر نوبت ۵ فرصت داری",
+  "descriptionShort": "گل یا پوچ، سریع و هیجان‌انگیز",
+  "version": "1.0.0",
+  "minPlayers": 2,
+  "maxPlayers": 2,
+  "defaultRandomPlayers": 2,
+  "supportedModes": ["random", "friend"],
+  "supportedTypes": ["free", "staked"],
+  "engine": "engine.js",
+  "frontendEntry": "gol-ya-pooch",
+  "theme": {
+    "primary": "#F5B841",
+    "accent": "#00C2B2"
+  },
+  "turnTimeoutSeconds": 20
+}

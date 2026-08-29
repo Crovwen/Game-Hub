@@ -1,0 +1,30 @@
+{
+  "name": "telegram-game-hub-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Server-authoritative backend for the Telegram Mini App game platform",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "test": "node --test tests/unit/*.test.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "build": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.20.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "grammy": "^1.30.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "prisma": "^5.20.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: game-hub-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npm run prisma:generate && npm run prisma:migrate
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BOT_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: WEBAPP_URL
+        sync: false
+      - key: BACKEND_URL
+        sync: false
+      - key: INITIAL_COINS
+        value: "1000"
+
+  - type: web
+    name: game-hub-frontend
+    runtime: static
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+      - key: VITE_WS_URL
+        sync: false
+    routes:
+      # Mini App is a single-page app — let client-side routing (if ever added) work.
+      - type: rewrite
+        source: /*
+        destination: /index.html

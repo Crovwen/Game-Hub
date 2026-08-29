@@ -1,0 +1,21 @@
+{
+  "id": "ludo",
+  "name": "Ludo",
+  "persianName": "منچ",
+  "icon": "🎲",
+  "description": "بازی کلاسیک منچ برای ۲ تا ۴ نفر با تاس و مهره‌های قابل زدن",
+  "descriptionShort": "منچ سنتی، حالا آنلاین",
+  "version": "1.0.0",
+  "minPlayers": 2,
+  "maxPlayers": 4,
+  "defaultRandomPlayers": 2,
+  "supportedModes": ["random", "friend"],
+  "supportedTypes": ["free", "staked"],
+  "engine": "engine.js",
+  "frontendEntry": "ludo",
+  "theme": {
+    "primary": "#3DDC97",
+    "accent": "#F5B841"
+  },
+  "turnTimeoutSeconds": 30
+}

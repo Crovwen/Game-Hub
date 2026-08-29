@@ -1,0 +1,179 @@
+// Prisma schema for the Telegram Mini App game platform.
+// Provider is plain PostgreSQL so it works unchanged whether DATABASE_URL
+// points at Render Postgres, Neon, Supabase, or a local Postgres instance.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  telegramId    BigInt   @unique
+  username      String?
+  firstName     String
+  lastName      String?
+  photoUrl      String?
+  coins         Int      @default(1000)
+  score         Int      @default(0)
+  wins          Int      @default(0)
+  losses        Int      @default(0)
+  gamesPlayed   Int      @default(0)
+  role          String   @default("user") // "user" | "admin"
+  isBanned      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sentFriendRequests     FriendRequest[]    @relation("sentRequests")
+  receivedFriendRequests FriendRequest[]    @relation("receivedRequests")
+  friendshipsA           Friendship[]       @relation("friendshipUserA")
+  friendshipsB           Friendship[]       @relation("friendshipUserB")
+  coinTransactions       CoinTransaction[]
+  scoreTransactions      ScoreTransaction[]
+  matchPlayers           MatchPlayer[]
+  sentGameRequests       GameRequest[]      @relation("sentGameRequests")
+  receivedGameRequests   GameRequest[]      @relation("receivedGameRequests")
+
+  @@index([score])
+  @@index([telegramId])
+}
+
+model FriendRequest {
+  id         String   @id @default(uuid())
+  senderId   String
+  receiverId String
+  status     String   @default("pending") // pending | accepted | rejected
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  sender   User @relation("sentRequests", fields: [senderId], references: [id])
+  receiver User @relation("receivedRequests", fields: [receiverId], references: [id])
+
+  // A user may only have one *pending* request in flight to the same target;
+  // enforced in application code (see friendService) because Prisma can't
+  // express a partial-unique-index across only `status = 'pending'` portably.
+  @@index([senderId])
+  @@index([receiverId])
+}
+
+model Friendship {
+  id        String   @id @default(uuid())
+  userAId   String
+  userBId   String
+  createdAt DateTime @default(now())
+
+  userA User @relation("friendshipUserA", fields: [userAId], references: [id])
+  userB User @relation("friendshipUserB", fields: [userBId], references: [id])
+
+  // userAId is always the lexicographically smaller id (enforced in
+  // friendService) so a friendship between X and Y is stored exactly once.
+  @@unique([userAId, userBId])
+}
+
+model Match {
+  id         String    @id @default(uuid())
+  gameId     String
+  mode       String // random | friend
+  type       String // free | staked
+  stake      Int       @default(0)
+  status     String // waiting | ready | playing | finished | cancelled | expired
+  gameState  Json?
+  winnerId   String?
+  isDraw     Boolean   @default(false)
+  result     Json?
+  createdAt  DateTime  @default(now())
+  startedAt  DateTime?
+  finishedAt DateTime?
+
+  players MatchPlayer[]
+
+  @@index([gameId, status])
+}
+
+model MatchPlayer {
+  id          String   @id @default(uuid())
+  matchId     String
+  userId      String
+  seat        Int
+  isConnected Boolean  @default(true)
+  joinedAt    DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([matchId, userId])
+}
+
+// Every single coin movement, ever. This is the ledger — a user's `coins`
+// column is a cached sum, this table is the source of truth for audits.
+model CoinTransaction {
+  id             String   @id @default(uuid())
+  userId         String
+  amount         Int // positive = credit, negative = debit
+  type           String // initial_grant | free_win_reward | stake_lock | stake_refund | match_payout | admin_adjust
+  reference      String? // usually a matchId
+  idempotencyKey String   @unique // guarantees "at most once" for every economic event
+  balanceAfter   Int
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model ScoreTransaction {
+  id             String   @id @default(uuid())
+  userId         String
+  amount         Int // always >= 0 — score never decreases
+  type           String // e.g. staked_random_win, free_friend_win
+  reference      String?
+  idempotencyKey String   @unique
+  balanceAfter   Int
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+// A friend-to-friend game invite (distinct from a FriendRequest, which is
+// about becoming friends, not about starting a match).
+model GameRequest {
+  id         String    @id @default(uuid())
+  gameId     String
+  type       String // free | staked
+  fromUserId String
+  toUserId   String
+  status     String // pending | accepted | rejected | expired | cancelled
+  matchId    String?
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+
+  fromUser User @relation("sentGameRequests", fields: [fromUserId], references: [id])
+  toUser   User @relation("receivedGameRequests", fields: [toUserId], references: [id])
+
+  @@index([toUserId, status])
+}
+
+// Cached, queryable mirror of the auto-discovered games/<id>/manifest.json
+// files. Rebuilt at startup by the registry — never hand-edited. Having it
+// in the DB (not just in memory) lets the leaderboard/game-list API filter
+// by isActive without importing the registry module into every route.
+model GameCatalogEntry {
+  id             String   @id // matches games/<id>
+  name           String
+  persianName    String
+  icon           String
+  description    String
+  minPlayers     Int
+  maxPlayers     Int
+  supportedModes Json
+  supportedTypes Json
+  version        String
+  isActive       Boolean  @default(true)
+  updatedAt      DateTime @updatedAt
+}
